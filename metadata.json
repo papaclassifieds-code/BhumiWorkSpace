@@ -1,0 +1,6 @@
+{
+  "name": "Bhumi WorkLife",
+  "description": "Mobile-first attendance and productivity tracking application for Bhumi WorkLife employees.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}

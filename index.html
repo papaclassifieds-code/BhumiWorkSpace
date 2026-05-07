@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bhumi WorkLife</title>
+    <script>
+      const originalFetch = window.fetch;
+      try {
+        const desc = {
+          configurable: true,
+          enumerable: true,
+          get: () => originalFetch,
+          set: () => {
+            console.warn('Attempted to override fetch ignored');
+          }
+        };
+        Object.defineProperty(window, 'fetch', desc);
+        Object.defineProperty(globalThis, 'fetch', desc);
+      } catch (e) {
+        console.warn('Failed to define fetch property:', e);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

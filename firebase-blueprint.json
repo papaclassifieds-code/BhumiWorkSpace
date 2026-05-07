@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Information about an employee.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["employee", "admin"] },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "createdAt": { "type": "string", "format": "timestamp" },
+        "updatedAt": { "type": "string", "format": "timestamp" }
+      },
+      "required": ["email", "role", "status", "createdAt", "updatedAt"]
+    },
+    "AttendanceLog": {
+      "title": "Attendance Log",
+      "description": "A daily attendance record for an employee.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "clockIn": { "type": "string", "format": "timestamp" },
+        "clockOut": { "type": "string", "format": "timestamp" },
+        "clockInLocation": { "type": "string" },
+        "clockOutLocation": { "type": "string" },
+        "status": { "type": "string", "enum": ["present", "absent", "leave"] },
+        "updatedAt": { "type": "string", "format": "timestamp" }
+      },
+      "required": ["date", "clockIn", "status", "updatedAt"]
+    },
+    "ProductivityTask": {
+      "title": "Productivity Task",
+      "description": "A task logged by an employee for productivity tracking.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["completed", "in-progress"] },
+        "createdAt": { "type": "string", "format": "timestamp" },
+        "updatedAt": { "type": "string", "format": "timestamp" }
+      },
+      "required": ["date", "description", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profile data. Managed primarily by admin or upon first login."
+    },
+    "/users/{userId}/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/AttendanceLog" },
+      "description": "Stores daily attendance records for an employee."
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/ProductivityTask" },
+      "description": "Stores productivity tasks for an employee."
+    }
+  }
+}

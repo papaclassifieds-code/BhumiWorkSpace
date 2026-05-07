@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Core Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['email', 'role', 'status', 'createdAt', 'updatedAt']) &&
+             data.email is string && data.email.size() >= 3 && data.email.size() <= 256 &&
+             data.role in ['employee', 'admin'] &&
+             data.status in ['active', 'inactive'] &&
+             (data.keys().hasAny(['displayName']) == false || (data.displayName is string && data.displayName.size() <= 100)) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidAttendanceLog(data) {
+      return data.keys().hasAll(['date', 'clockIn', 'status', 'updatedAt']) &&
+             data.date is string && data.date.size() == 10 &&
+             data.clockIn is timestamp &&
+             data.status in ['present', 'absent', 'leave', 'working'] &&
+             (data.keys().hasAny(['clockOut']) == false || data.clockOut is timestamp) &&
+             (data.keys().hasAny(['clockInLocation']) == false || (data.clockInLocation is string && data.clockInLocation.size() <= 500)) &&
+             (data.keys().hasAny(['clockOutLocation']) == false || (data.clockOutLocation is string && data.clockOutLocation.size() <= 500)) &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidProductivityTask(data) {
+      return data.keys().hasAll(['date', 'description', 'status', 'createdAt', 'updatedAt']) &&
+             data.date is string && data.date.size() == 10 &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 1000 &&
+             data.status in ['completed', 'in-progress'] &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    // --- Collections ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+      
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUserProfile(incoming()) &&
+                    incoming().role == 'employee' && 
+                    incoming().status == 'active' &&
+                    incoming().email == request.auth.token.email &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time &&
+                    incoming().keys().size() <= 6;
+      
+      allow update: if isValidId(userId) && (
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']) &&
+         incoming().updatedAt == request.time &&
+         incoming().displayName is string && incoming().displayName.size() <= 100)
+        ||
+        (isAdmin() && isValidUserProfile(incoming()) && incoming().updatedAt == request.time)
+      );
+      
+      allow delete: if false;
+
+      match /attendance/{attendanceId} {
+        allow get: if isValidId(userId) && isValidId(attendanceId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin());
+        
+        allow create: if isValidId(userId) && isValidId(attendanceId) && isOwner(userId) &&
+                      isValidAttendanceLog(incoming()) &&
+                      get(/databases/$(database)/documents/users/$(userId)).data.status == 'active' &&
+                      incoming().updatedAt == request.time &&
+                      incoming().keys().size() <= 7; 
+
+        allow update: if isValidId(userId) && isValidId(attendanceId) && (
+          (isOwner(userId) && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['clockOut', 'clockOutLocation', 'status', 'updatedAt']) &&
+           incoming().updatedAt == request.time &&
+           (incoming().keys().hasAny(['clockOut']) == false || incoming().clockOut is timestamp) &&
+           (incoming().keys().hasAny(['clockOutLocation']) == false || (incoming().clockOutLocation is string && incoming().clockOutLocation.size() <= 500)) &&
+           (incoming().keys().hasAny(['status']) == false || incoming().status in ['present', 'absent', 'leave', 'working'])
+          ) ||
+          (isAdmin() && isValidAttendanceLog(incoming()) && incoming().updatedAt == request.time)
+        );
+      }
+
+      match /tasks/{taskId} {
+        allow get: if isValidId(userId) && isValidId(taskId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin());
+        
+        allow create: if isValidId(userId) && isValidId(taskId) && isOwner(userId) &&
+                      isValidProductivityTask(incoming()) &&
+                      get(/databases/$(database)/documents/users/$(userId)).data.status == 'active' &&
+                      incoming().createdAt == request.time &&
+                      incoming().updatedAt == request.time &&
+                      incoming().keys().size() <= 5;
+                      
+        allow update: if isValidId(userId) && isValidId(taskId) && (
+          (isOwner(userId) && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['description', 'status', 'updatedAt']) &&
+           incoming().updatedAt == request.time &&
+           (incoming().keys().hasAny(['status']) == false || incoming().status in ['completed', 'in-progress']) &&
+           (incoming().keys().hasAny(['description']) == false || (incoming().description is string && incoming().description.size() <= 1000))
+          ) ||
+          (isAdmin() && isValidProductivityTask(incoming()) && incoming().updatedAt == request.time)
+        );
+        allow delete: if isValidId(userId) && isValidId(taskId) && isOwner(userId);
+      }
+    }
+  }
+}
