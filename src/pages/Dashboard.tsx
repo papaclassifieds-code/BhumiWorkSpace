@@ -53,30 +53,13 @@ export default function Dashboard() {
     }
   };
 
-  const getLocation = (): Promise<string> => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve("Geolocation not supported");
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve(`${position.coords.latitude},${position.coords.longitude}`);
-        },
-        () => resolve("Location denied")
-      );
-    });
-  };
-
   const handleClockIn = async () => {
     if (!user) return;
-    const locationStr = await getLocation();
     const newDocRef = doc(collection(db, `users/${user.uid}/attendance`));
     
     const payloadData = {
       date: todayStr,
       clockIn: serverTimestamp(),
-      clockInLocation: locationStr,
       status: 'working',
       updatedAt: serverTimestamp()
     };
@@ -91,12 +74,10 @@ export default function Dashboard() {
 
   const handleClockOut = async () => {
     if (!user || !currentLog) return;
-    const locationStr = await getLocation();
     const docRef = doc(db, `users/${user.uid}/attendance`, currentLog.id);
     
     const payloadData = {
       clockOut: serverTimestamp(),
-      clockOutLocation: locationStr,
       status: 'present',
       updatedAt: serverTimestamp()
     };
@@ -155,14 +136,6 @@ export default function Dashboard() {
                  {!isClockedIn ? 'Not Started' : (!hasClockedOut ? 'Shift Active' : 'Completed')}
               </h2>
            </div>
-           {isClockedIn && currentLog?.clockInLocation && (
-              <div className="hidden sm:flex items-center gap-2">
-                 <span className="px-3 sm:px-4 py-2 bg-white/10 text-white/60 text-[10px] sm:text-xs font-black uppercase rounded-full tracking-widest">
-                    <MapPin className="w-3 h-3 inline mr-1" />
-                    Logged
-                 </span>
-              </div>
-           )}
         </div>
         
         <div className="mt-8 sm:mt-12 flex flex-col sm:flex-row sm:items-end justify-between relative z-10">
